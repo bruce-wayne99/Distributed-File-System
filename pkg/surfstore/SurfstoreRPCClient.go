@@ -2,6 +2,8 @@ package surfstore
 
 import (
 	context "context"
+	"fmt"
+	"strings"
 	"time"
 
 	grpc "google.golang.org/grpc"
@@ -85,71 +87,89 @@ func (surfClient *RPCClient) HasBlocks(blockHashesIn []string, blockStoreAddr st
 
 func (surfClient *RPCClient) GetFileInfoMap(serverFileInfoMap *map[string]*FileMetaData) error {
 	// connect to the server
-	conn, err := grpc.Dial(surfClient.MetaStoreAddr[0], grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		return err
-	}
-	c := NewMetaStoreClient(conn)
 
-	// perform the call
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	fileInfoMap, err := c.GetFileInfoMap(ctx, &emptypb.Empty{})
-	if err != nil {
-		conn.Close()
-		return err
+	for _, addr := range surfClient.MetaStoreAddr {
+		conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			continue
+		}
+		c := NewRaftSurfstoreClient(conn)
+
+		// perform the call
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		fileInfoMap, err := c.GetFileInfoMap(ctx, &emptypb.Empty{})
+		if err != nil {
+			conn.Close()
+			continue
+		}
+
+		for k, v := range (*fileInfoMap).FileInfoMap {
+			(*serverFileInfoMap)[k] = v
+		}
+
+		// close the connection
+		return conn.Close()
 	}
 
-	for k, v := range (*fileInfoMap).FileInfoMap {
-		(*serverFileInfoMap)[k] = v
-	}
-
-	// close the connection
-	return conn.Close()
+	return fmt.Errorf("get fileinfomap operation: failed to contact all servers")
 }
 
 func (surfClient *RPCClient) UpdateFile(fileMetaData *FileMetaData, latestVersion *int32) error {
 	// connect to the server
-	conn, err := grpc.Dial(surfClient.MetaStoreAddr[0], grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		return err
-	}
-	c := NewMetaStoreClient(conn)
 
-	// perform the call
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	b, err := c.UpdateFile(ctx, fileMetaData)
-	if err != nil {
-		conn.Close()
-		return err
-	}
-	*latestVersion = b.Version
+	for _, addr := range surfClient.MetaStoreAddr {
+		conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			continue
+		}
+		c := NewRaftSurfstoreClient(conn)
 
-	// close the connection
-	return conn.Close()
+		// perform the call
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		b, err := c.UpdateFile(ctx, fileMetaData)
+		if err != nil && strings.Contains(err.Error(), "old version update") {
+			conn.Close()
+			return err
+		} else if err != nil {
+			continue
+		}
+		*latestVersion = b.Version
+
+		// close the connection
+		return conn.Close()
+	}
+
+	return fmt.Errorf("update file operation: failed to contact all servers")
 }
 
 func (surfClient *RPCClient) GetBlockStoreAddr(blockStoreAddr *string) error {
-	// connect to the server
-	conn, err := grpc.Dial(surfClient.MetaStoreAddr[0], grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		return err
-	}
-	c := NewMetaStoreClient(conn)
 
-	// perform the call
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	addr, err := c.GetBlockStoreAddr(ctx, &emptypb.Empty{})
-	if err != nil {
-		conn.Close()
-		return err
-	}
-	*blockStoreAddr = addr.Addr
+	for _, addr := range surfClient.MetaStoreAddr {
+		// connect to the server
+		conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			// fmt.Println("Error from server with addr: ", addr, err)
+			continue
+		}
+		c := NewRaftSurfstoreClient(conn)
 
-	// close the connection
-	return conn.Close()
+		// perform the call
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		addr, err := c.GetBlockStoreAddr(ctx, &emptypb.Empty{})
+		if err != nil {
+			// fmt.Println("Error from server with addr: ", addr, err)
+			conn.Close()
+			continue
+		}
+		*blockStoreAddr = addr.Addr
+
+		// close the connection
+		return conn.Close()
+	}
+	return fmt.Errorf("get block addr operation: failed to contact all servers")
 }
 
 // This line guarantees all method for RPCClient are implemented

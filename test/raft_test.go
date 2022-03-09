@@ -3,8 +3,9 @@ package SurfTest
 import (
 	context "context"
 	"cse224/proj5/pkg/surfstore"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	"testing"
+
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 func TestRaftSetLeader(t *testing.T) {
@@ -16,6 +17,7 @@ func TestRaftSetLeader(t *testing.T) {
 	// TEST
 	leaderIdx := 0
 	test.Clients[leaderIdx].SetLeader(test.Context, &emptypb.Empty{})
+	// test.Clients[leaderIdx].SendHeartbeat(test.Context, &emptypb.Empty{})
 
 	// heartbeat
 	for _, server := range test.Clients {
@@ -46,6 +48,7 @@ func TestRaftSetLeader(t *testing.T) {
 
 	leaderIdx = 2
 	test.Clients[leaderIdx].SetLeader(test.Context, &emptypb.Empty{})
+	// test.Clients[leaderIdx].SendHeartbeat(test.Context, &emptypb.Empty{})
 
 	// heartbeat
 	for _, server := range test.Clients {

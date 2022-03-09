@@ -1,9 +1,10 @@
 package SurfTest
 
 import (
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	"os"
 	"testing"
+
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	//	"time"
 )
 
@@ -38,8 +39,9 @@ func TestSyncTwoClientsSameFileLeaderFailure(t *testing.T) {
 
 	//client1 syncs
 	err = SyncClient("localhost:8080", "test0", BLOCK_SIZE, cfgPath)
+	test.Clients[0].SendHeartbeat(test.Context, &emptypb.Empty{})
 	if err != nil {
-		t.Fatalf("Sync failed")
+		t.Fatalf(err.Error())
 	}
 
 	test.Clients[0].Crash(test.Context, &emptypb.Empty{})
@@ -48,12 +50,14 @@ func TestSyncTwoClientsSameFileLeaderFailure(t *testing.T) {
 
 	//client2 syncs
 	err = SyncClient("localhost:8080", "test1", BLOCK_SIZE, cfgPath)
+	test.Clients[1].SendHeartbeat(test.Context, &emptypb.Empty{})
 	if err != nil {
 		t.Fatalf("Sync failed")
 	}
 
 	//client1 syncs
 	err = SyncClient("localhost:8080", "test0", BLOCK_SIZE, cfgPath)
+	test.Clients[1].SendHeartbeat(test.Context, &emptypb.Empty{})
 	if err != nil {
 		t.Fatalf("Sync failed")
 	}
