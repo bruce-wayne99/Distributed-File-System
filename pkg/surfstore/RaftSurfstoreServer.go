@@ -182,12 +182,26 @@ func (s *RaftSurfstore) attemptCommit(targetIdx int64, commitIdx int) {
 	for {
 		//TODO: handle crashed nodes
 		commit := <-commitChan
+		s.isCrashedMutex.RLock()
+		isCrashed := s.isCrashed
+		s.isCrashedMutex.RUnlock()
+		if isCrashed {
+			s.pendingCommits[commitIdx] <- false
+			return
+		}
 		if commit != nil && commit.Success {
 			commitCount++
 		}
 		if commit != nil && !commit.Success {
 			s.pendingCommits[commitIdx] <- false
 			break
+		}
+		s.isCrashedMutex.RLock()
+		isCrashed = s.isCrashed
+		s.isCrashedMutex.RUnlock()
+		if isCrashed {
+			s.pendingCommits[commitIdx] <- false
+			return
 		}
 		if commitCount > len(s.ipList)/2 {
 			// for {
@@ -233,13 +247,13 @@ func (s *RaftSurfstore) commitEntry(serverIdx, entryIdx int64, commitChan chan *
 				return
 			}
 			if err != nil && strings.Contains(err.Error(), "Server is not the leader") {
-				s.term = output.Term
+				// s.term = output.Term
 				s.isLeaderMutex.Lock()
 				s.isLeader = false
 				s.isLeaderMutex.Unlock()
 				commitChan <- &AppendEntryOutput{
 					ServerId:     serverIdx,
-					Term:         output.Term,
+					Term:         s.term,
 					Success:      false,
 					MatchedIndex: -1,
 				}
