@@ -119,7 +119,7 @@ func (s *RaftSurfstore) UpdateFile(ctx context.Context, filemeta *FileMetaData) 
 	s.isCrashedMutex.RUnlock()
 
 	fmt.Println("$$$$$$$$$$$$$$$$$$$$$$$")
-	fmt.Println("Printing leader details log length:", len(s.log), "serverId:", s.serverId)
+	fmt.Println("Update file called: Printing leader details log length:", len(s.log), "serverId:", s.serverId)
 	fmt.Println("$$$$$$$$$$$$$$$$$$$$$$$")
 
 	// for {
@@ -433,12 +433,14 @@ func (s *RaftSurfstore) IsCrashed(ctx context.Context, _ *emptypb.Empty) (*Crash
 
 func (s *RaftSurfstore) GetInternalState(ctx context.Context, empty *emptypb.Empty) (*RaftInternalState, error) {
 	fileInfoMap, _ := s.metaStore.GetFileInfoMap(ctx, empty)
-	return &RaftInternalState{
+	output := &RaftInternalState{
 		IsLeader: s.isLeader,
 		Term:     s.term,
 		Log:      s.log,
 		MetaMap:  fileInfoMap,
-	}, nil
+	}
+	fmt.Println("Internal state called, Internal state: ", output, "serverId:", s.serverId)
+	return output, nil
 }
 
 var _ RaftSurfstoreInterface = new(RaftSurfstore)

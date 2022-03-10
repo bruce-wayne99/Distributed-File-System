@@ -108,6 +108,9 @@ func TestRaftFollowersGetUpdates(t *testing.T) {
 		FileMetaData: filemeta1,
 	})
 
+	t.Log("Printing golden meta file meta map")
+	t.Log(goldenMeta.FileMetaMap)
+
 	for _, server := range test.Clients {
 		state, _ := server.GetInternalState(test.Context, &emptypb.Empty{})
 		if !SameLog(goldenLog, state.Log) {
