@@ -122,15 +122,15 @@ func (s *RaftSurfstore) UpdateFile(ctx context.Context, filemeta *FileMetaData) 
 	fmt.Println("Printing leader details log length:", len(s.log), "serverId:", s.serverId)
 	fmt.Println("$$$$$$$$$$$$$$$$$$$$$$$")
 
-	for {
-		msg, err := s.SendHeartbeat(ctx, &emptypb.Empty{})
-		if msg != nil && msg.Flag {
-			break
-		}
-		if msg != nil && !msg.Flag && err != nil && strings.Contains(err.Error(), "Server is not the leader") {
-			return nil, err
-		}
-	}
+	// for {
+	// 	msg, err := s.SendHeartbeat(ctx, &emptypb.Empty{})
+	// 	if msg != nil && msg.Flag {
+	// 		break
+	// 	}
+	// 	if msg != nil && !msg.Flag && err != nil && strings.Contains(err.Error(), "Server is not the leader") {
+	// 		return nil, err
+	// 	}
+	// }
 
 	op := &UpdateOperation{
 		Term:         s.term,
