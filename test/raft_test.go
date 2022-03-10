@@ -87,6 +87,7 @@ func TestRaftFollowersGetUpdates(t *testing.T) {
 	// TEST
 	leaderIdx := 0
 	test.Clients[leaderIdx].SetLeader(test.Context, &emptypb.Empty{})
+	test.Clients[leaderIdx].SendHeartbeat(test.Context, &emptypb.Empty{})
 
 	filemeta1 := &surfstore.FileMetaData{
 		Filename:      "testFile1",
@@ -95,6 +96,7 @@ func TestRaftFollowersGetUpdates(t *testing.T) {
 	}
 
 	test.Clients[leaderIdx].UpdateFile(context.Background(), filemeta1)
+	test.Clients[leaderIdx].SendHeartbeat(test.Context, &emptypb.Empty{})
 
 	goldenMeta := surfstore.NewMetaStore("")
 	goldenMeta.UpdateFile(test.Context, filemeta1)
