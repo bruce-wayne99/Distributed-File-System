@@ -241,6 +241,12 @@ func (s *RaftSurfstore) commitEntry(serverIdx, entryIdx int64, commitChan chan *
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
 			// fmt.Println("Sending commit entry to server id: ", serverIdx, "from server id: ", s.serverId, "NextIdx: ", nextIdx)
+			s.isCrashedMutex.RLock()
+			isCrashed := s.isCrashed
+			s.isCrashedMutex.RUnlock()
+			if isCrashed {
+				commitChan <- nil
+			}
 			output, err := client.AppendEntries(ctx, input)
 			if output != nil && output.Success {
 				commitChan <- output
