@@ -119,7 +119,7 @@ func (s *RaftSurfstore) UpdateFile(ctx context.Context, filemeta *FileMetaData) 
 	s.isCrashedMutex.RUnlock()
 
 	fmt.Println("$$$$$$$$$$$$$$$$$$$$$$$")
-	fmt.Println("Update file called: Printing leader details log length:", len(s.log), "serverId:", s.serverId)
+	fmt.Println("Update file called: Printing leader details log length:", len(s.log), "serverId:", s.serverId, "filemeta:", filemeta)
 	fmt.Println("$$$$$$$$$$$$$$$$$$$$$$$")
 
 	// for {
@@ -226,6 +226,7 @@ func (s *RaftSurfstore) commitEntry(serverIdx, entryIdx int64, commitChan chan *
 
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
+			// fmt.Println("Sending commit entry to server id: ", serverIdx, "from server id: ", s.serverId, "NextIdx: ", nextIdx)
 			output, err := client.AppendEntries(ctx, input)
 			if output != nil && output.Success {
 				commitChan <- output
@@ -314,6 +315,8 @@ func (s *RaftSurfstore) AppendEntries(ctx context.Context, input *AppendEntryInp
 		s.commitIndex = int64(math.Min(float64(input.LeaderCommit), float64(len(s.log)-1)))
 	}
 
+	// fmt.Println("Printing leader commit idx: ", input.LeaderCommit, "and server id: ", s.serverId, "prevIdx: ", prevIndex)
+
 	for s.lastApplied < s.commitIndex {
 		s.lastApplied++
 		entry := s.log[s.lastApplied]
@@ -357,6 +360,7 @@ func (s *RaftSurfstore) SendHeartbeat(ctx context.Context, _ *emptypb.Empty) (*S
 	// fmt.Println("Sendheartbeat called")
 	hbCount := 0
 	for idx, addr := range s.ipList {
+		// fmt.Println("Printing hearbeat idx: ", idx, len(s.ipList))
 		if int64(idx) == s.serverId {
 			hbCount++
 			continue
@@ -378,6 +382,7 @@ func (s *RaftSurfstore) SendHeartbeat(ctx context.Context, _ *emptypb.Empty) (*S
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
+		// fmt.Println("Sending hearbeat entry to server id: ", idx, "from server id: ", s.serverId)
 		output, err := client.AppendEntries(ctx, input)
 		if (err == nil) || (err != nil && !strings.Contains(err.Error(), "Server is crashed.")) {
 			hbCount++
@@ -394,9 +399,9 @@ func (s *RaftSurfstore) SendHeartbeat(ctx context.Context, _ *emptypb.Empty) (*S
 			}, ERR_NOT_LEADER
 		}
 		conn.Close()
-		if hbCount > len(s.ipList)/2 {
-			break
-		}
+		// if hbCount > len(s.ipList)/2 {
+		// 	break
+		// }
 	}
 
 	if hbCount > len(s.ipList)/2 {
@@ -439,7 +444,8 @@ func (s *RaftSurfstore) GetInternalState(ctx context.Context, empty *emptypb.Emp
 		Log:      s.log,
 		MetaMap:  fileInfoMap,
 	}
-	fmt.Println("Internal state called, Internal state: ", output, "serverId:", s.serverId)
+	fmt.Println("Internal state called, Internal state: ", output, "serverId:", s.serverId, "commitIdx: ",
+		s.commitIndex, "lastApplied: ", s.lastApplied)
 	return output, nil
 }
 
