@@ -15,6 +15,7 @@ func TestSyncTwoClientsSameFileLeaderFailure(t *testing.T) {
 	test := InitTest(cfgPath, "8080")
 	defer EndTest(test)
 	test.Clients[0].SetLeader(test.Context, &emptypb.Empty{})
+	test.Clients[0].SendHeartbeat(test.Context, &emptypb.Empty{})
 
 	worker1 := InitDirectoryWorker("test0", SRC_PATH)
 	worker2 := InitDirectoryWorker("test1", SRC_PATH)
@@ -113,4 +114,70 @@ func TestSyncTwoClientsSameFileLeaderFailure(t *testing.T) {
 	if !c {
 		t.Fatalf("wrong file2 contents at client2")
 	}
+}
+
+func TestSyncTwoClientsClusterFailure(t *testing.T) {
+	t.Logf("client1 syncs with file1. client2 syncs. majority of the cluster crashes. client2 syncs again.")
+	cfgPath := "./config_files/3nodes.txt"
+	test := InitTest(cfgPath, "8080")
+	defer EndTest(test)
+	test.Clients[0].SetLeader(test.Context, &emptypb.Empty{})
+	test.Clients[0].SendHeartbeat(test.Context, &emptypb.Empty{})
+
+	worker1 := InitDirectoryWorker("test0", SRC_PATH)
+	worker2 := InitDirectoryWorker("test1", SRC_PATH)
+	defer worker1.CleanUp()
+	defer worker2.CleanUp()
+
+	//clients add different files
+	file1 := "multi_file1.txt"
+	// file2 := "multi_file1.txt"
+	err := worker1.AddFile(file1)
+	if err != nil {
+		t.FailNow()
+	}
+	// err = worker2.AddFile(file2)
+	// if err != nil {
+	// 	t.FailNow()
+	// }
+	// err = worker2.UpdateFile(file2, "update text")
+	// if err != nil {
+	// 	t.FailNow()
+	// }
+
+	//client1 syncs
+	err = SyncClient("localhost:8080", "test0", BLOCK_SIZE, cfgPath)
+	test.Clients[0].SendHeartbeat(test.Context, &emptypb.Empty{})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	// test.Clients[0].Crash(test.Context, &emptypb.Empty{})
+	// test.Clients[1].SetLeader(test.Context, &emptypb.Empty{})
+	// test.Clients[1].SendHeartbeat(test.Context, &emptypb.Empty{})
+
+	//client1 syncs
+	err = SyncClient("localhost:8080", "test0", BLOCK_SIZE, cfgPath)
+	test.Clients[0].SendHeartbeat(test.Context, &emptypb.Empty{})
+	if err != nil {
+		t.Fatalf("Sync failed")
+	}
+
+	//client2 syncs
+	err = SyncClient("localhost:8080", "test1", BLOCK_SIZE, cfgPath)
+	test.Clients[0].SendHeartbeat(test.Context, &emptypb.Empty{})
+	if err != nil {
+		t.Fatalf("Sync failed")
+	}
+
+	test.Clients[1].Crash(test.Context, &emptypb.Empty{})
+	test.Clients[2].Crash(test.Context, &emptypb.Empty{})
+
+	//client 2 syncs
+	err = SyncClient("localhost:8080", "test1", BLOCK_SIZE, cfgPath)
+	test.Clients[0].SendHeartbeat(test.Context, &emptypb.Empty{})
+	if err == nil {
+		t.Fatalf("Sync failed")
+	}
+
 }

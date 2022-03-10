@@ -4,6 +4,7 @@ import (
 	context "context"
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
@@ -48,7 +49,6 @@ type RaftSurfstore struct {
 }
 
 func (s *RaftSurfstore) GetFileInfoMap(ctx context.Context, empty *emptypb.Empty) (*FileInfoMap, error) {
-	// fmt.Println("File info map called")
 	s.isLeaderMutex.RLock()
 	if !s.isLeader {
 		s.isLeaderMutex.RUnlock()
@@ -68,7 +68,7 @@ func (s *RaftSurfstore) GetFileInfoMap(ctx context.Context, empty *emptypb.Empty
 		if msg != nil && msg.Flag {
 			break
 		}
-		if msg != nil && !msg.Flag && err == ERR_NOT_LEADER {
+		if msg != nil && !msg.Flag && err != nil && strings.Contains(err.Error(), "Server is not the leader") {
 			return nil, err
 		}
 	}
@@ -96,7 +96,7 @@ func (s *RaftSurfstore) GetBlockStoreAddr(ctx context.Context, empty *emptypb.Em
 		if msg != nil && msg.Flag {
 			break
 		}
-		if msg != nil && !msg.Flag && err == ERR_NOT_LEADER {
+		if msg != nil && !msg.Flag && err != nil && strings.Contains(err.Error(), "Server is not the leader") {
 			return nil, err
 		}
 	}
@@ -127,7 +127,7 @@ func (s *RaftSurfstore) UpdateFile(ctx context.Context, filemeta *FileMetaData) 
 		if msg != nil && msg.Flag {
 			break
 		}
-		if msg != nil && !msg.Flag && err == ERR_NOT_LEADER {
+		if msg != nil && !msg.Flag && err != nil && strings.Contains(err.Error(), "Server is not the leader") {
 			return nil, err
 		}
 	}
@@ -231,7 +231,7 @@ func (s *RaftSurfstore) commitEntry(serverIdx, entryIdx int64, commitChan chan *
 				commitChan <- output
 				return
 			}
-			if err == ERR_NOT_LEADER {
+			if err != nil && strings.Contains(err.Error(), "Server is not the leader") {
 				s.term = output.Term
 				s.isLeaderMutex.Lock()
 				s.isLeader = false
@@ -270,12 +270,13 @@ func (s *RaftSurfstore) AppendEntries(ctx context.Context, input *AppendEntryInp
 	s.isCrashedMutex.RUnlock()
 
 	if input.Term < s.term {
-		return &AppendEntryOutput{
+		output := &AppendEntryOutput{
 			ServerId:     s.serverId,
 			Term:         s.term,
 			Success:      false,
 			MatchedIndex: -1,
-		}, ERR_NOT_LEADER
+		}
+		return output, ERR_NOT_LEADER
 	}
 
 	prevIndex := input.PrevLogIndex
@@ -378,11 +379,13 @@ func (s *RaftSurfstore) SendHeartbeat(ctx context.Context, _ *emptypb.Empty) (*S
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
 		output, err := client.AppendEntries(ctx, input)
-		if err != ERR_SERVER_CRASHED {
+		if (err == nil) || (err != nil && !strings.Contains(err.Error(), "Server is crashed.")) {
 			hbCount++
 		}
-		if err == ERR_NOT_LEADER {
-			s.term = output.Term
+		if err != nil && strings.Contains(err.Error(), "Server is not the leader") {
+			if output != nil {
+				s.term = output.Term
+			}
 			s.isLeaderMutex.Lock()
 			s.isLeader = false
 			s.isLeaderMutex.Unlock()
