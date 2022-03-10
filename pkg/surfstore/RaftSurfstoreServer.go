@@ -224,6 +224,15 @@ func (s *RaftSurfstore) commitEntry(serverIdx, entryIdx int64, commitChan chan *
 			return
 		}
 		client := NewRaftSurfstoreClient(conn)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		state, err := client.IsCrashed(ctx, &emptypb.Empty{})
+		if err != nil {
+			return
+		}
+		if state.IsCrashed {
+			continue
+		}
 
 		for nextIdx := entryIdx; nextIdx >= -1; nextIdx-- {
 			prevLogTerm := int64(-1)
